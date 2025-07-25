@@ -31,7 +31,7 @@ def create_bar_chart(data, page_num=1, attr_page_size=12, people_page_size=3):
 
         # Fixed height regardless of people count
         fig_height = 0.55 * len(df_page) + 2
-        fig, ax = plt.subplots(figsize=(8.27, fig_height))  # A4 width ~8.27in
+        fig, ax = plt.subplots(figsize=(14, fig_height))
 
         # Background color
         ax.set_facecolor("#e6fff7")
@@ -62,11 +62,11 @@ def create_bar_chart(data, page_num=1, attr_page_size=12, people_page_size=3):
             names_text = "\n".join(group_people)
             text = f"{names_text}   average_scores: {avg_score:.1f}"
             ax.text(10.2, avg_line_y[i], text,
-                    va='center', ha='left', fontsize=8)
+                    va='center', ha='left', fontsize=10)
 
         # Y-axis labels (attributes)
         ax.set_yticks(avg_line_y)
-        ax.set_yticklabels(page_attributes, fontsize=9)
+        ax.set_yticklabels(page_attributes, fontsize=11)
         ax.invert_yaxis()
 
         # Clean axis
@@ -89,7 +89,7 @@ def create_bar_chart(data, page_num=1, attr_page_size=12, people_page_size=3):
 
 # ---- Generate PDF with multiple pages ----
 def create_pdf_report(data):
-    pdf = FPDF(orientation='P', unit='mm', format='A4')  # A4 for mobile compatibility
+    pdf = FPDF()
     page_num = 1
     more_pages = True
 
@@ -99,9 +99,7 @@ def create_pdf_report(data):
         for chart_path in chart_paths:
             pdf.add_page()
             pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, "Performance Report", ln=True, align="C")
-
-            # Fit image to full page width (keeping same look on mobile/laptop)
+            pdf.cell(200, 10, "Performance Report", ln=True, align="C")
             pdf.image(chart_path, x=10, y=30, w=190)
 
         page_num += 1
