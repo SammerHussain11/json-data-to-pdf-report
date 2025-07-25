@@ -1,51 +1,107 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from fpdf import FPDF
+from matplotlib import cm
+import math
 
-def create_bar_chart(data):
+# ---- Create Bar Chart (Fixed Look) ----
+def create_bar_chart(data, page_num=1, attr_page_size=12, people_page_size=3):
     df = pd.DataFrame(data).T
-    individuals = [key for key in df.columns if key != "average_score"]
+    individuals = [col for col in df.columns if col != "average_score"]
     num_people = len(individuals)
-    num_attributes = len(df)
+    attributes = df.index.tolist()
 
-    # Increase figure height based on number of people (bigger than before)
-    fig_height = 2 + 0.6 * num_attributes  # makes graph taller for more rows
-    fig, ax = plt.subplots(figsize=(12, fig_height))  # wider and taller graph
+    # --- Pagination for attributes (rows) ---
+    attr_start = (page_num - 1) * attr_page_size
+    attr_end = attr_start + attr_page_size
+    page_attributes = attributes[attr_start:attr_end]
 
-    # Bar width and horizontal positioning
-    bar_width = 0.8 / num_people
-    y_positions = list(range(num_attributes))
+    # --- Split people into groups (fixed width for 3 people) ---
+    num_people_groups = math.ceil(num_people / people_page_size)
+    charts = []
 
-    # Plot each individual's bar
-    for i, person in enumerate(individuals):
-        offset_y = [y + i * bar_width for y in y_positions]
-        ax.barh(offset_y, df[person], height=bar_width, label=person, alpha=0.8)
+    for group in range(num_people_groups):
+        start_idx = group * people_page_size
+        end_idx = start_idx + people_page_size
+        group_people = individuals[start_idx:end_idx]
 
-    # ✅ Plot average line correctly aligned with center of bars
-    avg_line_y = [y + (bar_width * num_people) / 2 for y in y_positions]
-    ax.plot(df['average_score'], avg_line_y, 'r-', label="Average", linewidth=2)
+        # Create sub-DataFrame with fixed group of people
+        df_page = df.loc[page_attributes, group_people + ['average_score']]
 
-    # Configure axis
-    ax.set_yticks(avg_line_y)
-    ax.set_yticklabels(df.index)
-    ax.set_xlabel('Scores')
-    ax.set_xlim(0, 10)
-    ax.legend(loc='upper right', fontsize='small')
-    ax.set_title("Performance Comparison")
+        # Fixed height regardless of people count
+        fig_height = 0.55 * len(df_page) + 2
+        fig, ax = plt.subplots(figsize=(14, fig_height))
 
-    plt.tight_layout()
-    chart_path = "chart.png"
-    plt.savefig(chart_path, bbox_inches="tight", dpi=300)  # high quality
-    plt.close()
-    return chart_path
+        # Background color
+        ax.set_facecolor("#e6fff7")
+        fig.patch.set_facecolor("white")
 
+        # Bar width
+        bar_width = 0.8 / len(group_people)
+        y_positions = np.arange(len(df_page))
+        avg_line_y = y_positions + (bar_width * len(group_people)) / 2
+
+        # Purple bars
+        purple_colors = cm.plasma(np.linspace(0.4, 0.8, len(group_people)))
+        for i, person in enumerate(group_people):
+            ax.barh(
+                y_positions + i * bar_width,
+                df_page[person],
+                height=bar_width,
+                color=purple_colors[i],
+                alpha=0.9
+            )
+
+        # Red average line
+        ax.plot(df_page['average_score'], avg_line_y, color='red', linewidth=2)
+
+        # Right-side names + average
+        for i, (attr, row) in enumerate(df_page.iterrows()):
+            avg_score = row['average_score']
+            names_text = "\n".join(group_people)
+            text = f"{names_text}   average_scores: {avg_score:.1f}"
+            ax.text(10.2, avg_line_y[i], text,
+                    va='center', ha='left', fontsize=10)
+
+        # Y-axis labels (attributes)
+        ax.set_yticks(avg_line_y)
+        ax.set_yticklabels(page_attributes, fontsize=11)
+        ax.invert_yaxis()
+
+        # Clean axis
+        ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+        ax.set_xlim(0, 11)
+        ax.set_xticks([])
+
+        plt.tight_layout()
+
+        chart_path = f"chart_page_{page_num}_group_{group + 1}.png"
+        plt.savefig(chart_path, bbox_inches="tight", dpi=300)
+        plt.close()
+
+        charts.append(chart_path)
+
+    # Determine if more attribute pages exist
+    more_pages = len(attributes) > attr_end
+    return charts, more_pages
+
+
+# ---- Generate PDF with multiple pages ----
 def create_pdf_report(data):
-    chart_path = create_bar_chart(data)
-
     pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(200, 10, "Performance Report", ln=True, align="C")
-    pdf.image(chart_path, x=10, y=30, w=190)  # fit to page width
+    page_num = 1
+    more_pages = True
+
+    while more_pages:
+        chart_paths, more_pages = create_bar_chart(data, page_num=page_num)
+
+        for chart_path in chart_paths:
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(200, 10, "Performance Report", ln=True, align="C")
+            pdf.image(chart_path, x=10, y=30, w=190)
+
+        page_num += 1
 
     pdf.output("report.pdf")
